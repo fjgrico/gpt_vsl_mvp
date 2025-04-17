@@ -22,6 +22,30 @@ cta               = st.text_input("Llamada a la acción (CTA)",               ke
 
 # --- Generar Guion ---
 if st.button("Generar Guion de VSL", key="btn_generar"):
+from fpdf import FPDF
+import base64
+
+# Función para crear PDF del guion
+def crear_pdf(texto):
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
+    
+    # Dividir texto en líneas y añadir al PDF
+    lineas = texto.split('\n')
+    for linea in lineas:
+        pdf.multi_cell(0, 10, txt=linea.encode('latin-1', 'replace').decode('latin-1'))
+    
+    return pdf.output(dest='S').encode('latin-1')
+
+# Generar PDF si existe un guion generado
+if 'guion' in locals() or 'guion' in globals():
+    pdf_data = crear_pdf(guion)
+    b64 = base64.b64encode(pdf_data).decode('latin-1')
+    href = f'<a href="data:application/octet-stream;base64,{b64}" download="guion_vsl.pdf">📥 Descargar Guion en PDF</a>'
+    
+    st.markdown(href, unsafe_allow_html=True)
+
     with st.spinner("Generando guion…"):
         prompt = f"""
 Eres un copywriter profesional, experto en Video Sales Letters.
