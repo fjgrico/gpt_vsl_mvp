@@ -7,20 +7,32 @@ from gtts import gTTS
 from pptx import Presentation
 import base64
 
+# Subida a Google Drive
+from pydrive.auth import GoogleAuth
+from pydrive.drive import GoogleDrive
+
 # --- Configuración ---
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
 st.title("🎥 Generador de Guiones VSL con IA")
-st.write("Completa los datos para generar tu VSL en varios formatos.")
+st.write("Completa los datos para generar tu VSL en texto, PDF, audio y presentación.")
 
-# --- Selección de nicho ---
+# --- Autenticación Google Drive (solo la primera vez) ---
+@st.cache_resource
+def autenticar_drive():
+    gauth = GoogleAuth()
+    gauth.LocalWebserverAuth()  # Abre navegador para login
+    return GoogleDrive(gauth)
+
+drive = autenticar_drive()
+
+# --- Inputs ---
 nicho = st.selectbox("Selecciona tu tipo de negocio:", [
     "Coach", "Terapeuta", "Consultor", "Formador", "Nutricionista",
     "Agencia", "Psicólogo", "Negocio SaaS", "Entrenador personal", "Otro"
 ])
 
-# --- Inputs personalizados ---
 nombre_producto   = st.text_input("Nombre del producto/servicio", key="nombre_producto")
 publico_objetivo  = st.text_input("Público objetivo (Ej: coaches, madres…)", key="publico_objetivo")
 dolor_problema    = st.text_area("Dolor o problema que resuelve", key="dolor_problema")
@@ -29,7 +41,6 @@ precio_forma_pago = st.text_input("Precio / forma de pago", key="precio")
 garantia          = st.text_input("Garantía ofrecida", key="garantia")
 cta               = st.text_input("Llamada a la acción (CTA)", key="cta")
 
-# --- Ejemplos por nicho ---
 ejemplos_nicho = {
     "Coach": "Ejemplo: 'Con mi programa de coaching, mis clientes superan bloqueos y mejoran su vida profesional y personal...'",
     "Terapeuta": "Ejemplo: 'Mis pacientes reducen el estrés y la ansiedad, y recuperan su equilibrio emocional...'",
@@ -89,15 +100,22 @@ Datos personalizados:
             st.subheader("📄 Guion generado")
             st.markdown(guion)
 
-            # --- Descargar como TXT ---
-            st.download_button(
-                label="📄 Descargar Guion en TXT",
-                data=guion,
-                file_name="guion_vsl.txt",
-                mime="text/plain"
-            )
+            # --- Descarga TXT local + subida a Drive ---
+            txt_filename = "guion_vsl.txt"
+            with open(txt_filename, "w", encoding="utf-8") as f:
+                f.write(guion)
 
-            # --- Exportar PDF ---
+            st.download_button("📄 Descargar Guion en TXT", data=guion, file_name=txt_filename, mime="text/plain")
+
+            # Subir a Drive
+            archivo_drive = drive.CreateFile({'title': txt_filename})
+            archivo_drive.SetContentFile(txt_filename)
+            archivo_drive.Upload()
+            enlace_drive = f"https://drive.google.com/file/d/{archivo_drive['id']}/view"
+            st.success("✅ Guion subido a Google Drive correctamente.")
+            st.markdown(f"🔗 [Ver en Google Drive]({enlace_drive})")
+
+            # --- PDF ---
             def crear_pdf(texto):
                 pdf = FPDF()
                 pdf.add_page()
@@ -111,7 +129,7 @@ Datos personalizados:
             href = f'<a href="data:application/octet-stream;base64,{b64}" download="guion_vsl.pdf">📥 Descargar Guion en PDF</a>'
             st.markdown(href, unsafe_allow_html=True)
 
-            # --- Narración IA con gTTS ---
+            # --- Audio narrado ---
             try:
                 tts = gTTS(text=guion, lang='es')
                 tts.save("guion_vsl.mp3")
@@ -126,21 +144,20 @@ Datos personalizados:
                 st.warning("No se pudo generar la narración.")
                 st.text(str(e))
 
-            # --- Generación de presentación PowerPoint ---
+            # --- PowerPoint ---
             try:
                 prs = Presentation()
                 layout = prs.slide_layouts[1]
-
                 bloques = guion.split('\n\n')
                 for i, bloque in enumerate(bloques):
                     if bloque.strip() == "":
                         continue
                     slide = prs.slides.add_slide(layout)
                     slide.shapes.title.text = f"Slide {i+1}"
-                    contenido = bloque.strip().replace('\n', ' ')
-                    if len(contenido) > 250:
-                        contenido = contenido[:247] + '...'
-                    slide.placeholders[1].text = contenido
+                    texto_slide = bloque.strip().replace('\n', ' ')
+                    if len(texto_slide) > 250:
+                        texto_slide = texto_slide[:247] + '...'
+                    slide.placeholders[1].text = texto_slide
 
                 prs.save("guion_vsl.pptx")
                 with open("guion_vsl.pptx", "rb") as pptx_file:
