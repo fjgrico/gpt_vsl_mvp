@@ -5,15 +5,14 @@ from dotenv import load_dotenv
 from fpdf import FPDF
 from gtts import gTTS
 from pptx import Presentation
-from pptx.util import Inches
 import base64
 
 # --- Configuración ---
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
-st.title("🎥 Generador de VSL con IA")
-st.write("Completa los datos para generar un guion profesional narrado con voz y presentación.")
+st.title("🎥 Generador de Guiones VSL con IA")
+st.write("Completa los datos para generar tu VSL en varios formatos.")
 
 # --- Selección de nicho ---
 nicho = st.selectbox("Selecciona tu tipo de negocio:", [
@@ -90,6 +89,14 @@ Datos personalizados:
             st.subheader("📄 Guion generado")
             st.markdown(guion)
 
+            # --- Descargar como TXT ---
+            st.download_button(
+                label="📄 Descargar Guion en TXT",
+                data=guion,
+                file_name="guion_vsl.txt",
+                mime="text/plain"
+            )
+
             # --- Exportar PDF ---
             def crear_pdf(texto):
                 pdf = FPDF()
@@ -122,7 +129,7 @@ Datos personalizados:
             # --- Generación de presentación PowerPoint ---
             try:
                 prs = Presentation()
-                layout = prs.slide_layouts[1]  # Title and Content
+                layout = prs.slide_layouts[1]
 
                 bloques = guion.split('\n\n')
                 for i, bloque in enumerate(bloques):
